@@ -1,22 +1,27 @@
 package com.example.projekt
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import com.example.projekt.ui.theme.ProjektTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 class AddAppointmentActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,7 +32,7 @@ class AddAppointmentActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AddAppointmentForm()
+                    AddAppointmentForm(navController = rememberNavController()) // Pass a default NavController
                 }
             }
         }
@@ -36,13 +41,15 @@ class AddAppointmentActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddAppointmentForm() {
+fun AddAppointmentForm(navController: NavHostController) {
     var selectedPatient by remember { mutableStateOf<Patient?>(null) }
     var selectedDoctor by remember { mutableStateOf<Doctor?>(null) }
-    var appointmentTime by remember { mutableStateOf(TextFieldValue("")) }
     var patientList by remember { mutableStateOf(emptyList<Patient>()) }
     var doctorList by remember { mutableStateOf(emptyList<Doctor>()) }
     var showMessage by remember { mutableStateOf(false) }
+
+    var selectedDate by remember { mutableStateOf("") }
+    var selectedTime by remember { mutableStateOf("") }
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -57,6 +64,29 @@ fun AddAppointmentForm() {
             doctorList = doctorDao.getAllDoctors()
         }
     }
+
+    // DatePickerDialog
+    val calendar = Calendar.getInstance()
+    val datePickerDialog = DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            selectedDate = "$dayOfMonth/${month + 1}/$year"
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    )
+
+    // TimePickerDialog
+    val timePickerDialog = TimePickerDialog(
+        context,
+        { _, hourOfDay, minute ->
+            selectedTime = String.format("%02d:%02d", hourOfDay, minute)
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        true
+    )
 
     Column(
         modifier = Modifier
@@ -75,7 +105,8 @@ fun AddAppointmentForm() {
             label = "Select Patient",
             items = patientList,
             selectedItem = selectedPatient,
-            onItemSelected = { selectedPatient = it }
+            onItemSelected = { selectedPatient = it },
+            itemLabel = { patient -> "${patient.firstName} ${patient.lastName}" }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -84,29 +115,38 @@ fun AddAppointmentForm() {
             label = "Select Doctor",
             items = doctorList,
             selectedItem = selectedDoctor,
-            onItemSelected = { selectedDoctor = it }
+            onItemSelected = { selectedDoctor = it },
+            itemLabel = { doctor -> "${doctor.firstName} ${doctor.lastName}" }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        TextField(
-            value = appointmentTime,
-            onValueChange = { appointmentTime = it },
-            label = { Text("Appointment Time") },
-            keyboardOptions = KeyboardOptions.Default,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Button(onClick = { datePickerDialog.show() }) {
+                Text(text = "Select Date")
+            }
+            Text(text = selectedDate, modifier = Modifier.align(Alignment.CenterVertically))
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Button(onClick = { timePickerDialog.show() }) {
+                Text(text = "Select Time")
+            }
+            Text(text = selectedTime, modifier = Modifier.align(Alignment.CenterVertically))
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = {
                 scope.launch {
-                    if (selectedPatient != null && selectedDoctor != null && appointmentTime.text.isNotEmpty()) {
+                    if (selectedPatient != null && selectedDoctor != null && selectedDate.isNotEmpty() && selectedTime.isNotEmpty()) {
                         val appointment = Appointment(
                             patientId = selectedPatient!!.id,
                             doctorId = selectedDoctor!!.id,
-                            appointmentTime = appointmentTime.text
+                            appointmentTime = "$selectedDate $selectedTime"
                         )
                         appointmentDao.insert(appointment)
                         showMessage = true
@@ -122,7 +162,17 @@ fun AddAppointmentForm() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Show Snackbar for success message
+        Button(
+            onClick = {
+                navController.navigate("view_appointments") // Navigate to view appointments screen
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("View Appointments")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         if (showMessage) {
             Snackbar(
                 action = {
@@ -138,15 +188,66 @@ fun AddAppointmentForm() {
     }
 }
 
+
+
+
+
+
+
+
+
+@Composable
+fun ViewAppointmentsScreen() {
+    val context = LocalContext.current
+    val database = remember { DatabaseProvider.getDatabase(context) }
+    val appointmentDao = remember { database.appointmentDao() }
+    var appointments by remember { mutableStateOf(emptyList<Appointment>()) }
+
+    LaunchedEffect(Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            appointments = appointmentDao.getAllAppointments()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Appointments",
+            fontSize = 24.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        appointments.forEach { appointment ->
+            Text(text = "Appointment: ${appointment.appointmentTime}")
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 @Composable
 fun <T> DropdownMenu(
     label: String,
     items: List<T>,
     selectedItem: T?,
-    onItemSelected: (T) -> Unit
+    onItemSelected: (T) -> Unit,
+    itemLabel: (T) -> String // Add this parameter
 ) where T : Any {
     var expanded by remember { mutableStateOf(false) }
-    var selectedItemLabel by remember { mutableStateOf(selectedItem?.toString() ?: "Select $label") }
+    var selectedItemLabel by remember { mutableStateOf(selectedItem?.let { itemLabel(it) } ?: "Select $label") }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
@@ -160,10 +261,10 @@ fun <T> DropdownMenu(
             ) {
                 items.forEach { item ->
                     DropdownMenuItem(
-                        text = { Text(text = item.toString()) }, // Adjust as needed to get the label
+                        text = { Text(text = itemLabel(item)) }, // Use the lambda to get the label
                         onClick = {
                             onItemSelected(item)
-                            selectedItemLabel = item.toString() // Adjust as needed to get the label
+                            selectedItemLabel = itemLabel(item) // Use the lambda to get the label
                             expanded = false
                         }
                     )
@@ -177,6 +278,6 @@ fun <T> DropdownMenu(
 @Composable
 fun AddAppointmentFormPreview() {
     ProjektTheme {
-        AddAppointmentForm()
+        AddAppointmentForm(navController = rememberNavController()) // Pass a default NavController
     }
 }

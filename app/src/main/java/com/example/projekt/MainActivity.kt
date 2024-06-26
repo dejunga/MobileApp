@@ -81,9 +81,83 @@ fun NavigationHost(navController: NavHostController) {
     NavHost(navController, startDestination = NavItem.Patients.screen_route) {
         composable(NavItem.Patients.screen_route) { PatientsScreen(navController) }
         composable(NavItem.Doctors.screen_route) { DoctorsScreen(navController) }
-        composable(NavItem.Appointments.screen_route) { AddAppointmentForm() }
+        composable(NavItem.Appointments.screen_route) { AddAppointmentForm(navController) }
         composable(NavItem.Settings.screen_route) { SettingsScreen() }
         composable("add_patient") { AddPatientForm(navController) }
+        composable("view_patients") { PatientListScreen() }
+        composable("add_doctor") { AddDoctorForm(navController) }
+        composable("view_doctors") { DoctorListScreen() }
+        composable("view_appointments") { ViewAppointmentsScreen() } // Add this line
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddDoctorForm(navController: NavHostController) {
+    var firstName by remember { mutableStateOf(TextFieldValue("")) }
+    var lastName by remember { mutableStateOf(TextFieldValue("")) }
+    var showMessage by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val database = remember { DatabaseProvider.getDatabase(context) }
+    val doctorDao = remember { database.doctorDao() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Enter Doctor Details:",
+            fontSize = 24.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        TextField(
+            value = firstName,
+            onValueChange = { firstName = it },
+            label = { Text("First Name") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        TextField(
+            value = lastName,
+            onValueChange = { lastName = it },
+            label = { Text("Last Name") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = {
+                scope.launch {
+                    val doctor = Doctor(
+                        firstName = firstName.text,
+                        lastName = lastName.text
+                    )
+                    doctorDao.insert(doctor)
+                    showMessage = true
+                }
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("Submit")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        if (showMessage) {
+            Snackbar(
+                action = {
+                    Button(onClick = { showMessage = false }) {
+                        Text("Dismiss")
+                    }
+                },
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Text(text = "Doctor details submitted successfully!")
+            }
+        }
     }
 }
 
@@ -148,6 +222,7 @@ fun DoctorsScreen(navController: NavHostController) {
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
