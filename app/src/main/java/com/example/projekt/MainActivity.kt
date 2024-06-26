@@ -1,6 +1,6 @@
 package com.example.projekt
 
-import android.content.Intent
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +16,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.*
 import com.example.projekt.ui.theme.ProjektTheme
 import kotlinx.coroutines.launch
 
@@ -24,20 +26,132 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             ProjektTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    InputForm()
-                }
+                MainScreenView()
             }
+        }
+    }
+}
+
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreenView() {
+    val navController = rememberNavController()
+    Scaffold(
+        bottomBar = { BottomNavigationBar(navController) }
+    ) {
+        NavigationHost(navController = navController)
+    }
+}
+
+@Composable
+fun BottomNavigationBar(navController: NavHostController) {
+    val items = listOf(
+        NavItem.Patients,
+        NavItem.Doctors,
+        NavItem.Appointments,
+        NavItem.Settings
+    )
+    NavigationBar {
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
+        items.forEach { item ->
+            NavigationBarItem(
+                icon = { Icon(item.icon, contentDescription = item.title) },
+                label = { Text(item.title) },
+                selected = currentRoute == item.screen_route,
+                onClick = {
+                    navController.navigate(item.screen_route) {
+                        navController.graph.startDestinationRoute?.let { route ->
+                            popUpTo(route) {
+                                saveState = true
+                            }
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun NavigationHost(navController: NavHostController) {
+    NavHost(navController, startDestination = NavItem.Patients.screen_route) {
+        composable(NavItem.Patients.screen_route) { PatientsScreen(navController) }
+        composable(NavItem.Doctors.screen_route) { DoctorsScreen(navController) }
+        composable(NavItem.Appointments.screen_route) { AddAppointmentForm() }
+        composable(NavItem.Settings.screen_route) { SettingsScreen() }
+        composable("add_patient") { AddPatientForm(navController) }
+    }
+}
+
+@Composable
+fun PatientsScreen(navController: NavHostController) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Button(
+            onClick = {
+                navController.navigate("add_patient")
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Add Patient")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                navController.navigate("view_patients")
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("View Patients")
+        }
+    }
+}
+
+@Composable
+fun DoctorsScreen(navController: NavHostController) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Button(
+            onClick = {
+                navController.navigate("add_doctor")
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Add Doctor")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                navController.navigate("view_doctors")
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("View Doctors")
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InputForm() {
+fun AddPatientForm(navController: NavHostController) {
     var firstName by remember { mutableStateOf(TextFieldValue("")) }
     var lastName by remember { mutableStateOf(TextFieldValue("")) }
     var phone by remember { mutableStateOf(TextFieldValue("")) }
@@ -58,7 +172,7 @@ fun InputForm() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Upiši svoje podatke:",
+            text = "Enter Patient Details:",
             fontSize = 24.sp,
             modifier = Modifier.padding(bottom = 16.dp)
         )
@@ -116,12 +230,9 @@ fun InputForm() {
             },
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
-            Text("Nastavi")
+            Text("Submit")
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Greeting(firstName.text, lastName.text)
-
-        // Show Snackbar for success message
         if (showMessage) {
             Snackbar(
                 action = {
@@ -131,53 +242,29 @@ fun InputForm() {
                 },
                 modifier = Modifier.padding(8.dp)
             ) {
-                Text(text = "Uspješno su uneseni vaši podatci!")
+                Text(text = "Patient details submitted successfully!")
             }
-        }
-
-        // Button to navigate to patient list screen
-        Button(
-            onClick = {
-                // Navigate to PatientListActivity
-                context.startActivity(
-                    Intent(context, PatientListActivity::class.java)
-                )
-            },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text("View Patients")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Button to navigate to add doctor screen
-        Button(
-            onClick = {
-                // Navigate to AddDoctorActivity
-                context.startActivity(
-                    Intent(context, AddDoctorActivity::class.java)
-                )
-            },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text("Add Doctor")
         }
     }
 }
 
-
 @Composable
-fun Greeting(firstName: String, lastName: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $firstName $lastName!",
-        modifier = modifier
-    )
+fun SettingsScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "Settings", fontSize = 24.sp)
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun InputFormPreview() {
+fun DefaultPreview() {
     ProjektTheme {
-        InputForm()
+        MainScreenView()
     }
 }
